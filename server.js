@@ -37,7 +37,45 @@ app.post('/contact', (req, res) => {
   res.json({ success: true, message: 'Το μήνυμά σου παραλήφθηκε!' })
 })
 
-// 2. ΜΕΤΑ, ξεκίνα τον server
+app.post('/projects', (req, res) => {
+  const { title, description } = req.body
+
+  const newProject = {
+    id: projects.length + 1,
+    title,
+    description,
+  }
+
+  projects.push(newProject)
+  res.status(201).json(newProject)
+})
+
+app.put('/projects/:id', (req, res) => {
+  const id = parseInt(req.params.id)
+  const project = projects.find((p) => p.id === id)
+
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' })
+  }
+
+  project.title = req.body.title || project.title
+  project.description = req.body.description || project.description
+
+  res.json(project)
+})
+
+app.delete('/projects/:id', (req, res) => {
+  const id = parseInt(req.params.id)
+  const index = projects.findIndex((p) => p.id === id)
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Project not found' })
+  }
+
+  projects.splice(index, 1)
+  res.json({ success: true, message: 'Project deleted' })
+})
+
 app.listen(3000, () => {
   console.log('Ο server τρέχει στο http://localhost:3000')
 })
