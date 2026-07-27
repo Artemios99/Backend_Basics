@@ -105,6 +105,21 @@ app.delete('/projects/:id', (req, res) => {
   })
 })
 
+app.get('/projects/:id/comments', (req, res) => {
+  const id = req.params.id
+
+  db.query(
+    'SELECT comments.id, comments.text FROM comments WHERE comments.project_id = ?',
+    [id],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message })
+      }
+      res.json(results)
+    }
+  )
+})
+
 app.listen(3000, () => {
   console.log('Ο server τρέχει στο http://localhost:3000')
 })
