@@ -1,19 +1,21 @@
+require('dotenv').config()
 const express = require('express')
 const mysql = require('mysql2')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
-const JWT_SECRET = 'to-mystiko-mou-kleidi-123'
 const app = express()
 app.use(express.json())
 
 const db = mysql.createConnection({
-  host: '127.0.0.1',
-  port: 3307,
-  user: 'root',
-  password: '',
-  database: 'portfolio_db',
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 })
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 db.connect((err) => {
   if (err) {
