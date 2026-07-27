@@ -1,11 +1,23 @@
 const express = require('express')
+const mysql = require('mysql2')
 const app = express()
 app.use(express.json())
 
-const projects = [
-  { id: 1, title: 'Unibite', description: 'Website για διαμοιρασμό φαγητού' },
-  { id: 2, title: 'Patras Limani', description: 'Application για καλύτερη εξυπηρέτηση λιμανιού' },
-]
+const db = mysql.createConnection({
+  host: '127.0.0.1',
+  port: 3307,
+  user: 'root',
+  password: '',
+  database: 'portfolio_db',
+})
+
+db.connect((err) => {
+  if (err) {
+    console.error('Σφάλμα σύνδεσης:', err)
+    return
+  }
+  console.log('Συνδέθηκε επιτυχώς στη MySQL!')
+})
 
 // 1. Πρώτα, ΟΛΑ τα routes
 app.get('/', (req, res) => {
@@ -17,18 +29,26 @@ app.get('/about', (req, res) => {
 })
 
 app.get('/projects', (req, res) => {
-  res.json(projects)
+  db.query('SELECT * FROM projects', (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message })
+    }
+    res.json(results)
+  })
 })
 
 app.get('/projects/:id', (req, res) => {
-  const id = parseInt(req.params.id)
-  const project = projects.find((p) => p.id === id)
+  const id = req.params.id
 
-  if (!project) {
-    return res.status(404).json({ error: 'Project not found' })
-  }
-
-  res.json(project)
+  db.query('SELECT * FROM projects WHERE id = ?', [id], (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message })
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Project not found' })
+    }
+    res.json(results[0])
+  })
 })
 
 app.post('/contact', (req, res) => {
@@ -40,40 +60,49 @@ app.post('/contact', (req, res) => {
 app.post('/projects', (req, res) => {
   const { title, description } = req.body
 
-  const newProject = {
-    id: projects.length + 1,
-    title,
-    description,
-  }
-
-  projects.push(newProject)
-  res.status(201).json(newProject)
+  db.query(
+    'INSERT INTO projects (title, description) VALUES (?, ?)',
+    [title, description],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message })
+      }
+      res.status(201).json({ id: result.insertId, title, description })
+    }
+  )
 })
 
 app.put('/projects/:id', (req, res) => {
-  const id = parseInt(req.params.id)
-  const project = projects.find((p) => p.id === id)
+  const id = req.params.id
+  const { title, description } = req.body
 
-  if (!project) {
-    return res.status(404).json({ error: 'Project not found' })
-  }
-
-  project.title = req.body.title || project.title
-  project.description = req.body.description || project.description
-
-  res.json(project)
+  db.query(
+    'UPDATE projects SET title = ?, description = ? WHERE id = ?',
+    [title, description, id],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message })
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Project not found' })
+      }
+      res.json({ id, title, description })
+    }
+  )
 })
 
 app.delete('/projects/:id', (req, res) => {
-  const id = parseInt(req.params.id)
-  const index = projects.findIndex((p) => p.id === id)
+  const id = req.params.id
 
-  if (index === -1) {
-    return res.status(404).json({ error: 'Project not found' })
-  }
-
-  projects.splice(index, 1)
-  res.json({ success: true, message: 'Project deleted' })
+  db.query('DELETE FROM projects WHERE id = ?', [id], (err, result) => {
+    if (err) {
+      return res.status(500).json({ error: err.message })
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Project not found' })
+    }
+    res.json({ success: true, message: 'Project deleted' })
+  })
 })
 
 app.listen(3000, () => {
