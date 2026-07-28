@@ -25,6 +25,19 @@ db.connect((err) => {
   console.log('Συνδέθηκε επιτυχώς στη MySQL!')
 })
 
+const multer = require('multer')
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/')
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname)
+  },
+})
+
+const upload = multer({ storage: storage })
+
 // 1. Πρώτα, ΟΛΑ τα routes
 app.get('/', (req, res) => {
   res.send('Γεια σου από τον Express server!')
@@ -191,6 +204,16 @@ function verifyToken(req, res, next) {
 
 app.get('/dashboard', verifyToken, (req, res) => {
   res.json({ message: `Καλωσόρισες, χρήστη με id ${req.userId}!` })
+})
+
+app.post('/upload', upload.single('avatar'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Δεν στάλθηκε αρχείο' })
+  }
+  res.json({
+    message: 'Το αρχείο ανέβηκε επιτυχώς!',
+    filename: req.file.filename,
+  })
 })
 
 app.listen(3000, () => {
