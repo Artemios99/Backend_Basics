@@ -1,32 +1,28 @@
 require('dotenv').config()
 const express = require('express')
-const mysql = require('mysql2')
+const { Pool } = require('pg')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const cors = require('cors')
-
 
 const app = express()
 app.use(cors())
 app.use(express.json())
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 })
 
-const JWT_SECRET = process.env.JWT_SECRET
-
-db.connect((err) => {
+pool.connect((err) => {
   if (err) {
     console.error('Σφάλμα σύνδεσης:', err)
     return
   }
-  console.log('Συνδέθηκε επιτυχώς στη MySQL!')
+  console.log('Συνδέθηκε επιτυχώς στη PostgreSQL!')
 })
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 const multer = require('multer')
 
@@ -50,27 +46,26 @@ app.get('/about', (req, res) => {
   res.send('Είμαι φοιτητής στο CEID.')
 })
 
-app.get('/projects', (req, res) => {
-  db.query('SELECT * FROM projects', (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message })
-    }
-    res.json(results)
-  })
+app.get('/projects', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM projects')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
-app.get('/projects/:id', (req, res) => {
+app.get('/projects/:id', async (req, res) => {
   const id = req.params.id
-
-  db.query('SELECT * FROM projects WHERE id = ?', [id], (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message })
-    }
-    if (results.length === 0) {
+  try {
+    const result = await pool.query('SELECT * FROM projects WHERE id = $1', [id])
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' })
     }
-    res.json(results[0])
-  })
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.post('/contact', (req, res) => {
@@ -79,67 +74,60 @@ app.post('/contact', (req, res) => {
   res.json({ success: true, message: 'Το μήνυμά σου παραλήφθηκε!' })
 })
 
-app.post('/projects', (req, res) => {
+app.post('/projects', async (req, res) => {
   const { title, description } = req.body
-
-  db.query(
-    'INSERT INTO projects (title, description) VALUES (?, ?)',
-    [title, description],
-    (err, result) => {
-      if (err) {
-        return res.status(500).json({ error: err.message })
-      }
-      res.status(201).json({ id: result.insertId, title, description })
-    }
-  )
+  try {
+    const result = await pool.query(
+      'INSERT INTO projects (title, description) VALUES ($1, $2) RETURNING id',
+      [title, description]
+    )
+    res.status(201).json({ id: result.rows[0].id, title, description })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
-app.put('/projects/:id', (req, res) => {
+app.put('/projects/:id', async (req, res) => {
   const id = req.params.id
   const { title, description } = req.body
-
-  db.query(
-    'UPDATE projects SET title = ?, description = ? WHERE id = ?',
-    [title, description, id],
-    (err, result) => {
-      if (err) {
-        return res.status(500).json({ error: err.message })
-      }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Project not found' })
-      }
-      res.json({ id, title, description })
+  try {
+    const result = await pool.query(
+      'UPDATE projects SET title = $1, description = $2 WHERE id = $3',
+      [title, description, id]
+    )
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Project not found' })
     }
-  )
+    res.json({ id, title, description })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
-app.delete('/projects/:id', (req, res) => {
+app.delete('/projects/:id', async (req, res) => {
   const id = req.params.id
-
-  db.query('DELETE FROM projects WHERE id = ?', [id], (err, result) => {
-    if (err) {
-      return res.status(500).json({ error: err.message })
-    }
-    if (result.affectedRows === 0) {
+  try {
+    const result = await pool.query('DELETE FROM projects WHERE id = $1', [id])
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Project not found' })
     }
     res.json({ success: true, message: 'Project deleted' })
-  })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
-app.get('/projects/:id/comments', (req, res) => {
+app.get('/projects/:id/comments', async (req, res) => {
   const id = req.params.id
-
-  db.query(
-    'SELECT comments.id, comments.text FROM comments WHERE comments.project_id = ?',
-    [id],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ error: err.message })
-      }
-      res.json(results)
-    }
-  )
+  try {
+    const result = await pool.query(
+      'SELECT comments.id, comments.text FROM comments WHERE comments.project_id = $1',
+      [id]
+    )
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.post('/register', async (req, res) => {
@@ -148,16 +136,11 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    db.query(
-      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-      [username, email, hashedPassword],
-      (err, result) => {
-        if (err) {
-          return res.status(500).json({ error: err.message })
-        }
-        res.status(201).json({ id: result.insertId, username, email })
-      }
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id',
+      [username, email, hashedPassword]
     )
+    res.status(201).json({ id: result.rows[0].id, username, email })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -166,16 +149,14 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
   const { email, password } = req.body
 
-  db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message })
-    }
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
 
-    if (results.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Λάθος email ή password' })
     }
 
-    const user = results[0]
+    const user = result.rows[0]
     const passwordMatch = await bcrypt.compare(password, user.password)
 
     if (!passwordMatch) {
@@ -185,7 +166,9 @@ app.post('/login', async (req, res) => {
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' })
 
     res.json({ success: true, token, username: user.username })
-  })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 function verifyToken(req, res, next) {
@@ -219,6 +202,7 @@ app.post('/upload', upload.single('avatar'), (req, res) => {
   })
 })
 
-app.listen(3000, () => {
-  console.log('Ο server τρέχει στο http://localhost:3000')
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => {
+  console.log(`Ο server τρέχει στο port ${PORT}`)
 })
