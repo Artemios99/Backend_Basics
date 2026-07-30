@@ -74,6 +74,7 @@ app.post('/contact', (req, res) => {
   res.json({ success: true, message: 'Το μήνυμά σου παραλήφθηκε!' })
 })
 
+/*
 app.post('/projects', async (req, res) => {
   const { title, description } = req.body
   try {
@@ -116,6 +117,7 @@ app.delete('/projects/:id', async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+*/
 
 app.get('/projects/:id/comments', async (req, res) => {
   const id = req.params.id
