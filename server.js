@@ -130,6 +130,7 @@ app.get('/projects/:id/comments', async (req, res) => {
   }
 })
 
+/*
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body
 
@@ -191,6 +192,7 @@ function verifyToken(req, res, next) {
 app.get('/dashboard', verifyToken, (req, res) => {
   res.json({ message: `Καλωσόρισες, χρήστη με id ${req.userId}!` })
 })
+*/
 
 app.post('/upload', upload.single('avatar'), (req, res) => {
   if (!req.file) {
